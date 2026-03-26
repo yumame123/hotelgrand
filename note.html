@@ -117,7 +117,7 @@
 
 <header>
     <div class="controls">
-        <input type="text" id="memo-input" placeholder="新しいメモを入力...">
+        <input type="textarea" id="memo-input" placeholder="新しいメモを入力...">
         <button onclick="addMemo()">追加</button>
         <input type="text" id="search-input" placeholder="日付、ID、本文で検索..." oninput="renderMemos()">
     </div>
@@ -138,7 +138,7 @@
         const newMemo = {
             id: Date.now(),
             number: memos.length + 1,
-            text: input.value,
+            textarea: input.value,
             date: `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}`
         };
 
