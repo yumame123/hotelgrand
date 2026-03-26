@@ -44,7 +44,7 @@
             align-items: center;
         }
 
-        input[type="textarea"], textarea {
+        input[type="text"], textarea {
             padding: 10px;
             border: 1px solid var(--border-color);
             border-radius: 5px;
@@ -117,9 +117,9 @@
 
 <header>
     <div class="controls">
-        <input type="textarea" id="memo-input" placeholder="新しいメモを入力...">
+        <input type="text" id="memo-input" placeholder="新しいメモを入力...">
         <button onclick="addMemo()">追加</button>
-        <input type="textarea" id="search-input" placeholder="日付、ID、本文で検索..." oninput="renderMemos()">
+        <input type="text" id="search-input" placeholder="日付、ID、本文で検索..." oninput="renderMemos()">
     </div>
 </header>
 
@@ -138,7 +138,7 @@
         const newMemo = {
             id: Date.now(),
             number: memos.length + 1,
-            textarea: input.value,
+            text: input.value,
             date: `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}`
         };
 
