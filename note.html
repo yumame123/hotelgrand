@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Memo Board</title>
+    <style>
+        /* 色味のカスタマイズ（ここを変更するだけで全体の雰囲気が変わります） */
+        :root {
+            --bg-color: #f0f2f5;
+            --header-bg: #ffffff;
+            --card-bg: #ffffff;
+            --primary-color: #4a90e2;
+            --accent-color: #e74c3c;
+            --text-color: #333333;
+            --sub-text-color: #888888;
+            --border-color: #dddddd;
+        }
+
+        body {
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ヘッダー・操作エリア */
+        header {
+            background-color: var(--header-bg);
+            padding: 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .controls {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        input[type="text"], textarea {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        #search-input { flex-grow: 1; }
+        #memo-input { flex-grow: 2; height: 40px; }
+
+        button {
+            padding: 10px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover { opacity: 0.8; }
+        button.delete-btn { background-color: var(--accent-color); padding: 5px 10px; font-size: 12px; }
+        button.edit-btn { background-color: var(--sub-text-color); padding: 5px 10px; font-size: 12px; margin-right: 5px; }
+
+        /* メモ表示エリア（俯瞰フィールド） */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .memo-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 120px;
+            word-break: break-all;
+        }
+
+        .memo-header {
+            font-size: 12px;
+            color: var(--sub-text-color);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .memo-body {
+            font-size: 15px;
+            line-height: 1.5;
+            flex-grow: 1;
+            margin-bottom: 15px;
+            white-space: pre-wrap;
+        }
+
+        .memo-footer {
+            display: flex;
+            justify-content: flex-end;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="controls">
+        <input type="text" id="memo-input" placeholder="新しいメモを入力...">
+        <button onclick="addMemo()">追加</button>
+        <input type="text" id="search-input" placeholder="日付、ID、本文で検索..." oninput="renderMemos()">
+    </div>
+</header>
+
+<main class="board" id="memo-board">
+    </main>
+
+<script>
+    let memos = JSON.parse(localStorage.getItem('my_memos')) || [];
+
+    // メモ追加機能
+    function addMemo() {
+        const input = document.getElementById('memo-input');
+        if (!input.value.trim()) return;
+
+        const now = new Date();
+        const newMemo = {
+            id: Date.now(),
+            number: memos.length + 1,
+            text: input.value,
+            date: `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}`
+        };
+
+        memos.push(newMemo);
+        saveAndRender();
+        input.value = '';
+    }
+
+    // メモ削除機能
+    function deleteMemo(id) {
+        if (!confirm('このメモを削除しますか？')) return;
+        memos = memos.filter(m => m.id !== id);
+        saveAndRender();
+    }
+
+    // メモ編集機能
+    function editMemo(id) {
+        const memo = memos.find(m => m.id === id);
+        const newText = prompt('メモを編集:', memo.text);
+        if (newText !== null) {
+            memo.text = newText;
+            saveAndRender();
+        }
+    }
+
+    // データの保存と再描画
+    function saveAndRender() {
+        localStorage.setItem('my_memos', JSON.stringify(memos));
+        renderMemos();
+    }
+
+    // 描画機能（検索フィルタリング込み）
+    function renderMemos() {
+        const board = document.getElementById('memo-board');
+        const searchTerm = document.getElementById('search-input').value.toLowerCase();
+        
+        board.innerHTML = '';
+
+        const filtered = memos.filter(m => 
+            m.text.toLowerCase().includes(searchTerm) || 
+            m.date.includes(searchTerm) || 
+            String(m.number).includes(searchTerm)
+        );
+
+        filtered.reverse().forEach(memo => {
+            const card = document.createElement('div');
+            card.className = 'memo-card';
+            card.innerHTML = `
+                <div>
+                    <div class="memo-header">
+                        <span>#${memo.number}</span>
+                        <span>${memo.date}</span>
+                    </div>
+                    <div class="memo-body">${memo.text}</div>
+                </div>
+                <div class="memo-footer">
+                    <button class="edit-btn" onclick="editMemo(${memo.id})">編集</button>
+                    <button class="delete-btn" onclick="deleteMemo(${memo.id})">削除</button>
+                </div>
+            `;
+            board.appendChild(card);
+        });
+    }
+
+    // 初期読み込み
+    renderMemos();
+</script>
+
+</body>
+</html>
