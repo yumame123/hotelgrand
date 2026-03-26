@@ -44,7 +44,7 @@
             align-items: center;
         }
 
-        input[type="text"], textarea {
+        input[type="textarea"], textarea {
             padding: 10px;
             border: 1px solid var(--border-color);
             border-radius: 5px;
@@ -119,7 +119,7 @@
     <div class="controls">
         <input type="textarea" id="memo-input" placeholder="新しいメモを入力...">
         <button onclick="addMemo()">追加</button>
-        <input type="text" id="search-input" placeholder="日付、ID、本文で検索..." oninput="renderMemos()">
+        <input type="textarea" id="search-input" placeholder="日付、ID、本文で検索..." oninput="renderMemos()">
     </div>
 </header>
 
