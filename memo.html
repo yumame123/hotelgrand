@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>夕暮れノート - 放課後のメモ帳</title>
+    <style>
+        :root {
+            /* 夕暮れの学校をイメージしたカラーパレット */
+            --bg-gradient: linear-gradient(135deg, #2b192e 0%, #a24b51 50%, #d87e5a 100%);
+            --panel-bg: rgba(43, 25, 46, 0.85); /* 黒板や暗くなった木材のイメージ */
+            --text-main: #fcf1e3; /* チョークのような温かい白 */
+            --text-muted: #dca38f;
+            --accent-color: #d87e5a;
+            --tag-bg: #8c4146;
+            --border-color: rgba(220, 163, 143, 0.3);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Yu Mincho', 'Hiragino Mincho ProN', serif; /* ノスタルジックな明朝体 */
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 40px 20px;
+            background: var(--panel-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            padding: 30px;
+            backdrop-filter: blur(5px);
+            border: 1px solid var(--border-color);
+        }
+
+        h1 {
+            text-align: center;
+            font-weight: normal;
+            letter-spacing: 4px;
+            margin-bottom: 30px;
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 15px;
+            color: var(--text-main);
+        }
+
+        .input-section, .search-section {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        input, textarea {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 16px;
+            padding: 10px 5px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus {
+            border-bottom-color: var(--accent-color);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        input::placeholder, textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        button {
+            background: var(--accent-color);
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 16px;
+            letter-spacing: 2px;
+            transition: background 0.3s, transform 0.1s;
+            display: block;
+            margin: 0 auto;
+        }
+
+        button:hover {
+            background: #b56242;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .notes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .note-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            position: relative;
+            transition: transform 0.2s;
+        }
+
+        .note-card:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .note-title {
+            font-size: 1.2em;
+            margin: 0 0 10px 0;
+            color: var(--accent-color);
+        }
+
+        .note-body {
+            font-size: 0.95em;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            white-space: pre-wrap; /* 改行を反映 */
+        }
+
+        .note-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .tag {
+            background: var(--tag-bg);
+            color: #fff;
+            font-size: 0.8em;
+            padding: 4px 10px;
+            border-radius: 12px;
+            letter-spacing: 1px;
+        }
+
+        .delete-btn {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--text-muted);
+            padding: 4px 10px;
+            font-size: 0.8em;
+            margin: 0;
+            float: right;
+        }
+
+        .delete-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+        
+        .empty-message {
+            text-align: center;
+            color: var(--text-muted);
+            grid-column: 1 / -1;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>夕暮れノート</h1>
+
+    <div class="search-section">
+        <input type="text" id="searchInput" placeholder="本文やタグで検索（例：アイデア, 読書）">
+    </div>
+
+    <div class="input-section">
+        <input type="text" id="noteTitle" placeholder="タイトル">
+        <textarea id="noteBody" placeholder="本文をここに記述..."></textarea>
+        <input type="text" id="noteTags" placeholder="タグ（カンマ区切りで複数入力可）">
+        <button onclick="saveNote()">記憶に留める</button>
+    </div>
+
+    <div class="notes-grid" id="notesContainer">
+        </div>
+</div>
+
+<script>
+    // Safari等で保存するためのキー
+    const STORAGE_KEY = 'yugure_notes';
+
+    // メモを読み込む
+    function getNotes() {
+        const notes = localStorage.getItem(STORAGE_KEY);
+        return notes ? JSON.parse(notes) : [];
+    }
+
+    // メモを保存する
+    function saveNote() {
+        const titleInput = document.getElementById('noteTitle');
+        const bodyInput = document.getElementById('noteBody');
+        const tagsInput = document.getElementById('noteTags');
+
+        const title = titleInput.value.trim();
+        const body = bodyInput.value.trim();
+        // タグをカンマで分割し、空白を削除
+        const tags = tagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
+
+        if (!title && !body) {
+            alert('タイトルか本文のどちらかを入力してください。');
+            return;
+        }
+
+        const newNote = {
+            id: Date.now().toString(),
+            title: title || '無題',
+            body: body,
+            tags: tags,
+            date: new Date().toLocaleDateString('ja-JP')
+        };
+
+        const notes = getNotes();
+        notes.unshift(newNote); // 最新のものを先頭に追加
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+
+        // 入力欄をクリア
+        titleInput.value = '';
+        bodyInput.value = '';
+        tagsInput.value = '';
+
+        renderNotes();
+    }
+
+    // メモを削除する
+    function deleteNote(id) {
+        if(confirm('この記憶を消去しますか？')) {
+            let notes = getNotes();
+            notes = notes.filter(note => note.id !== id);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+            renderNotes();
+        }
+    }
+
+    // メモを画面に描画する
+    function renderNotes(searchTerm = '') {
+        const container = document.getElementById('notesContainer');
+        container.innerHTML = '';
+        
+        const notes = getNotes();
+        
+        // 検索フィルター
+        const filteredNotes = notes.filter(note => {
+            const lowerTerm = searchTerm.toLowerCase();
+            const matchTitle = note.title.toLowerCase().includes(lowerTerm);
+            const matchBody = note.body.toLowerCase().includes(lowerTerm);
+            const matchTags = note.tags.some(tag => tag.toLowerCase().includes(lowerTerm));
+            
+            return matchTitle || matchBody || matchTags;
+        });
+
+        if (filteredNotes.length === 0) {
+            container.innerHTML = '<div class="empty-message">メモはまだありません。</div>';
+            return;
+        }
+
+        filteredNotes.forEach(note => {
+            const card = document.createElement('div');
+            card.className = 'note-card';
+
+            const title = document.createElement('h3');
+            title.className = 'note-title';
+            title.textContent = note.title;
+
+            const body = document.createElement('div');
+            body.className = 'note-body';
+            body.textContent = note.body;
+
+            const tagsContainer = document.createElement('div');
+            tagsContainer.className = 'note-tags';
+            note.tags.forEach(tagText => {
+                const tag = document.createElement('span');
+                tag.className = 'tag';
+                tag.textContent = '#' + tagText;
+                tagsContainer.appendChild(tag);
+            });
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.textContent = '削除';
+            deleteBtn.onclick = () => deleteNote(note.id);
+
+            card.appendChild(title);
+            card.appendChild(tagsContainer);
+            card.appendChild(body);
+            card.appendChild(deleteBtn);
+
+            container.appendChild(card);
+        });
+    }
+
+    // 検索入力のイベントリスナー
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+        renderNotes(e.target.value);
+    });
+
+    // 初期表示
+    renderNotes();
+</script>
+
+</body>
+</html>
