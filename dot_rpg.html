@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <!-- iPhoneの横画面・全画面対応 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>ドットRPG</title>
+  <style>
+    /* ================================================
+       基本スタイル：全画面対応・スクロール禁止
+       ================================================ */
+    *, *::before, *::after {
+      margin: 0; padding: 0; box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0d0d1a;
+      /* iPhone Safe Area 対応 */
+      padding: env(safe-area-inset-top) env(safe-area-inset-right)
+               env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    #gameCanvas {
+      display: block;
+      /* ピクセルアート用：拡大しても滲まない */
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    /* ================================================
+       会話ダイアログUI
+       ================================================ */
+    #dialog-overlay {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      padding: 0 12px 20px;
+      /* iPhoneのホームバー分の余白 */
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
+      display: none;
+      z-index: 200;
+      pointer-events: none;
+    }
+    #dialog-box {
+      background: linear-gradient(135deg, rgba(8,8,30,0.97) 0%, rgba(15,15,50,0.97) 100%);
+      border: 2px solid #5577ff;
+      border-radius: 12px;
+      padding: 14px 16px 12px;
+      color: #e8e8f8;
+      font-family: 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      box-shadow: 0 0 30px rgba(85,119,255,0.3), 0 4px 20px rgba(0,0,0,0.8);
+      pointer-events: all;
+      max-width: 640px;
+      margin: 0 auto;
+      position: relative;
+    }
+    #dialog-name {
+      color: #88aaff;
+      font-weight: bold;
+      font-size: 13px;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #dialog-name::before {
+      content: '▶';
+      color: #5577ff;
+      font-size: 9px;
+    }
+    #dialog-text {
+      min-height: 40px;
+    }
+    #dialog-hint {
+      text-align: right;
+      color: rgba(136,170,255,0.5);
+      font-size: 11px;
+      margin-top: 8px;
+      animation: blink 1.2s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+    /* 会話インジケーター（「…」タイプ描写演出用） */
+    #dialog-cursor {
+      display: inline-block;
+      width: 8px; height: 8px;
+      background: #88aaff;
+      border-radius: 50%;
+      animation: blink 0.8s ease-in-out infinite;
+      vertical-align: middle;
+      margin-left: 4px;
+    }
+
+    /* ================================================
+       操作ヒントUI（最初だけ表示）
+       ================================================ */
+    #hint-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      color: #e8e8f8;
+      font-family: 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
+      gap: 18px;
+      padding: 30px;
+    }
+    #hint-overlay h1 {
+      font-size: 22px;
+      color: #88aaff;
+      letter-spacing: 0.1em;
+      text-shadow: 0 0 20px rgba(136,170,255,0.6);
+    }
+    #hint-overlay .hint-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      width: 100%;
+      max-width: 400px;
+    }
+    #hint-overlay .hint-item {
+      background: rgba(85,119,255,0.15);
+      border: 1px solid rgba(85,119,255,0.3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    #hint-overlay .hint-item span {
+      display: block;
+      font-size: 11px;
+      color: #88aaff;
+      margin-bottom: 3px;
+    }
+    #start-btn {
+      background: linear-gradient(135deg, #3355cc, #5577ff);
+      border: none;
+      color: #fff;
+      font-family: 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
+      font-size: 16px;
+      padding: 12px 40px;
+      border-radius: 30px;
+      cursor: pointer;
+      letter-spacing: 0.1em;
+      box-shadow: 0 4px 20px rgba(85,119,255,0.4);
+      transition: transform 0.1s, box-shadow 0.1s;
+      pointer-events: all;
+    }
+    #start-btn:active { transform: scale(0.96); }
+
+    /* ================================================
+       モバイル仮想ボタン（スマホ用の方向パッド）
+       必要なら display: flex に変更してください
+       ================================================ */
+    #dpad {
+      position: fixed;
+      bottom: 30px;
+      left: 20px;
+      /* スマホのみ表示したい場合は display:none→flexをJSで切り替え */
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      z-index: 150;
+      pointer-events: none;
+      opacity: 0.8;
+    }
+    #dpad.visible { display: flex; }
+    .dpad-row { display: flex; gap: 4px; }
+    .dpad-btn {
+      width: 44px; height: 44px;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      color: rgba(255,255,255,0.7);
+      cursor: pointer;
+      pointer-events: all;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.1s;
+    }
+    .dpad-btn:active, .dpad-btn.pressed {
+      background: rgba(85,119,255,0.4);
+    }
+
+    /* 会話ボタン（スマホ用） */
+    #talk-btn {
+      position: fixed;
+      bottom: 30px;
+      right: 20px;
+      width: 60px; height: 60px;
+      background: rgba(85,119,255,0.25);
+      border: 2px solid rgba(136,170,255,0.5);
+      border-radius: 50%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      z-index: 150;
+      pointer-events: all;
+      touch-action: none;
+    }
+    #talk-btn.visible { display: flex; }
+  </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<!-- 会話ダイアログ -->
+<div id="dialog-overlay">
+  <div id="dialog-box">
+    <div id="dialog-name">---</div>
+    <div id="dialog-text"></div>
+    <div id="dialog-hint">タップ / Enterで次へ</div>
+  </div>
+</div>
+
+<!-- 方向パッド（モバイル） -->
+<div id="dpad">
+  <div class="dpad-row">
+    <div class="dpad-btn" id="btn-up">▲</div>
+  </div>
+  <div class="dpad-row">
+    <div class="dpad-btn" id="btn-left">◀</div>
+    <div class="dpad-btn" id="btn-center" style="background:transparent;border-color:transparent;">　</div>
+    <div class="dpad-btn" id="btn-right">▶</div>
+  </div>
+  <div class="dpad-row">
+    <div class="dpad-btn" id="btn-down">▼</div>
+  </div>
+</div>
+
+<!-- 会話ボタン（モバイル） -->
+<div id="talk-btn" title="話しかける">💬</div>
+
+<!-- スタート画面 -->
+<div id="hint-overlay">
+  <h1>🏢 ビルの1階</h1>
+  <div class="hint-grid">
+    <div class="hint-item">
+      <span>🖥️ PC移動</span>
+      WASD / 矢印キー<br>長押しドラッグでも移動
+    </div>
+    <div class="hint-item">
+      <span>📱 スマホ移動</span>
+      画面を長押し＆ドラッグ<br>またはDパッドボタン
+    </div>
+    <div class="hint-item">
+      <span>💬 会話</span>
+      NPCに近づいて<br>Enter / タップ / 💬ボタン
+    </div>
+    <div class="hint-item">
+      <span>🗺️ ミニマップ</span>
+      左上に現在地を表示<br>赤=自分、緑=NPC
+    </div>
+  </div>
+  <button id="start-btn">▶ ゲームスタート</button>
+</div>
+
+<script>
+'use strict';
+// ================================================================
+//  2D ドットマップ ウォーキングゲーム
+//  作成日: 2025年
+//  ※ コード内の「変更可能」「カスタマイズ」コメントを探して
+//     各種パラメータを調整してください。
+// ================================================================
+
+// ================================================================
+//  ▼▼▼ ゲーム全体の基本設定（変更可能） ▼▼▼
+// ================================================================
+const CFG = {
+  TILE:           32,    // タイル1枚のピクセルサイズ。大きくするとマップが広く見える
+  FPS:            60,    // 目標フレームレート（変更不要）
+  PLAYER_SPEED:   2.2,   // プレイヤーの移動速度（ピクセル/フレーム）
+  NPC_SPEED:      0.9,   // NPCの移動速度
+  INTERACT_DIST:  50,    // NPCと会話できる距離（ピクセル）
+  HOLD_MS:        80,    // 長押し判定の閾値（ミリ秒）。小さいほど敏感
+  DPAD_SHOW:      true,  // trueでスマホ時にDパッドを表示
+  MINIMAP_SCALE:  4,     // ミニマップの縮小比（ピクセル/タイル）
+  MINIMAP_ALPHA:  0.80,  // ミニマップの透明度（0〜1）
+  TEXT_SPEED:     2,     // 会話文字表示の速度（フレーム/文字）。0で一括表示
+};
+
+// ================================================================
+//  ▼▼▼ タイル種別の定義（変更・追加可能） ▼▼▼
+//  MAP_DATAで使う数字の意味をここで管理します。
+//  新しいタイルを追加する場合:
+//    1. TILE_DEF にエントリ追加
+//    2. SOLID_TILES に追加するか否かを決める
+//    3. drawTile() に描画処理を追加
+// ================================================================
+const T = {
+  FLOOR:    0,   // 床（歩ける）
+  WALL:     1,   // 壁（歩けない）
+  DOOR:     2,   // ドア（歩ける）
+  DESK:     3,   // 机（歩けない）
+  SHELF:    4,   // 棚（歩けない）
+  WINDOW:   5,   // 窓（歩けない）
+  PLANT:    6,   // 観葉植物（歩けない）
+  RUG:      7,   // カーペット（歩ける、色違いの床）
+  COUNTER:  8,   // カウンター（歩けない）
+  CHAIR:    9,   // 椅子（歩けない）
+};
+
+// 歩けないタイルのリスト（追加・変更可能）
+const SOLID = new Set([T.WALL, T.DESK, T.SHELF, T.WINDOW, T.PLANT, T.COUNTER, T.CHAIR]);
+
+// タイルの基本色（カスタマイズ可能）
+const TILE_COLOR = {
+  [T.FLOOR]:   '#c4ad90',
+  [T.WALL]:    '#3d3258',
+  [T.DOOR]:    '#7a4020',
+  [T.DESK]:    '#7a5c18',
+  [T.SHELF]:   '#1e5f8a',
+  [T.WINDOW]:  '#6dc9e8',
+  [T.PLANT]:   '#2a7a2a',
+  [T.RUG]:     '#a06050',
+  [T.COUNTER]: '#5a4030',
+  [T.CHAIR]:   '#6b4226',
+};
+
+// ================================================================
+//  ▼▼▼ マップデータ（変更可能） ▼▼▼
+//  数字の意味は上の T.XXX を参照。
+//  行と列を増減してマップを拡張できます。
+//  ※ 一番外側の列・行は必ず1(壁)にしてください。
+// ================================================================
+// 略称エイリアス（マップを書きやすくするため）
+const _=T.FLOOR, W=T.WALL, D=T.DOOR, d=T.DESK, S=T.SHELF,
+      G=T.WINDOW, P=T.PLANT, R=T.RUG, C=T.COUNTER, H=T.CHAIR;
+
+const MAP = [
+//  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+  [ W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W ], // 0
+  [ W, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W ], // 1
+  [ W, G, G, G, G, _, _, _, _, _, _, _, _, _, _, _, _, G, G, G, G, G, G, W ], // 2
+  [ W, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W ], // 3
+  [ W, _, d, d, H, _, _, _, _, _, _, _, _, _, _, H, d, d, d, _, _, _, _, W ], // 4
+  [ W, _, d, d, _, _, _, _, _, _, _, _, _, _, _, _, d, d, d, _, _, _, _, W ], // 5
+  [ W, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W ], // 6
+  [ W, _, _, _, P, _, W, W, W, W, W, W, W, W, W, _, P, _, _, _, _, _, _, W ], // 7
+  [ W, _, _, _, _, _, W, _, _, _, _, _, _, _, W, _, _, _, _, _, _, _, _, W ], // 8
+  [ W, _, _, _, _, _, W, _, S, S, S, S, S, _, W, _, _, _, _, _, _, _, _, W ], // 9
+  [ W, _, R, R, R, _, W, _, S, S, S, S, S, _, W, _, R, R, R, R, _, _, _, W ], // 10
+  [ W, _, R, R, R, _, W, _, _, C, C, C, _, _, W, _, R, R, R, R, _, _, _, W ], // 11
+  [ W, _, _, _, _, _, W, _, _, _, _, _, _, _, W, _, _, _, _, _, _, _, _, W ], // 12
+  [ W, _, _, _, _, _, W, W, W, D, W, W, W, W, W, _, _, _, _, _, _, _, _, W ], // 13
+  [ W, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W ], // 14
+  [ W, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W ], // 15
+  [ W, _, _, _, _, _, _, P, _, _, _, _, _, P, _, _, _, _, _, _, _, _, _, W ], // 16
+  [ W, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, W ], // 17
+  [ W, W, W, W, W, W, W, W, W, W, D, W, W, W, W, W, W, W, W, W, W, W, W, W ], // 18
+];
+
+const MAP_ROWS = MAP.length;
+const MAP_COLS = MAP[0].length;
+
+// ================================================================
+//  ▼▼▼ プレイヤー設定（カスタマイズ可能） ▼▼▼
+// ================================================================
+const PLAYER_CFG = {
+  startTileX: 11,   // 開始位置（タイルX座標）
+  startTileY: 15,   // 開始位置（タイルY座標）
+  name: 'あなた',
+
+  // ===== ドット絵の色設定（変更可能） =====
+  // 画像ファイルを使いたい場合はdrawCharacter()を改造してください
+  skinColor:  '#ffd0a0',   // 肌の色
+  hairColor:  '#2a1800',   // 髪の色
+  bodyColor:  '#3366cc',   // 体（シャツ）の色
+  pantsColor: '#334466',   // ズボンの色
+  shoeColor:  '#222222',   // 靴の色
+};
+
+// ================================================================
+//  ▼▼▼ NPC定義（追加・編集可能） ▼▼▼
+//  各NPCのパラメータ:
+//    tileX/tileY  : 初期位置（タイル座標）
+//    name         : 名前（ダイアログに表示される）
+//    skinColor    : 肌の色
+//    hairColor    : 髪の色
+//    bodyColor    : 体の色
+//    pantsColor   : ズボンの色
+//    wandering    : true=歩き回る / false=その場に止まる
+//    wanderArea   : 歩き回る範囲（タイル座標の矩形 {x1,y1,x2,y2}）
+//    facing       : 初期向き 'up'/'down'/'left'/'right'
+//    dialogs      : 会話文の配列（最後まで読むと最初に戻る）
+// ================================================================
+const NPC_DEFS = [
+  {
+    tileX: 3, tileY: 4,
+    name: 'アリス',
+    skinColor:  '#ffe0b0',
+    hairColor:  '#cc2255',
+    bodyColor:  '#dd4488',
+    pantsColor: '#662244',
+    wandering: false,
+    facing: 'right',
+    dialogs: [
+      'いらっしゃい！このビルにようこそ。',
+      '奥の小部屋は資料室です。自由に使ってどうぞ。',
+      '何かご不明な点があれば、いつでも声をかけてください！',
+    ],
+  },
+  {
+    tileX: 17, tileY: 4,
+    name: 'ボブ',
+    skinColor:  '#ffe0b0',
+    hairColor:  '#222222',
+    bodyColor:  '#2266aa',
+    pantsColor: '#334466',
+    wandering: false,
+    facing: 'left',
+    dialogs: [
+      'ああ、忙しくて死にそうですよ…。',
+      '棚の中に重要書類がしまってあるんです。',
+      '今夜中に全部まとめないといけないんですが、量が多くて。',
+      '助けてもらえると嬉しいんですが、まあ無理ですよね。',
+    ],
+  },
+  {
+    tileX: 10, tileY: 10,
+    name: 'チャーリー',
+    skinColor:  '#ffc090',
+    hairColor:  '#5a3000',
+    bodyColor:  '#ee8800',
+    pantsColor: '#664400',
+    wandering: true,
+    // 歩き回る範囲（このエリア内でランダム移動）
+    wanderArea: { x1: 1, y1: 7, x2: 5, y2: 17 },
+    facing: 'down',
+    dialogs: [
+      'よう！ぷらぷらしてるんですよ。',
+      'このビルって広いですよね。探索してみてください。',
+      'またどこかで会いましょう！',
+    ],
+  },
+  {
+    tileX: 17, tileY: 14,
+    name: 'ダイアナ',
+    skinColor:  '#ffe0c0',
+    hairColor:  '#440088',
+    bodyColor:  '#9933ff',
+    pantsColor: '#551188',
+    wandering: true,
+    wanderArea: { x1: 15, y1: 7, x2: 22, y2: 17 },
+    facing: 'left',
+    dialogs: [
+      'こんにちは〜！散歩日和ですね。',
+      '資料室の棚、整理してあげたいんですけどね。',
+      'また歩いてきますね！', 
+    ],
+  },
+  {
+    tileX: 10, tileY: 17,
+    name: '警備員',
+    skinColor:  '#e0c090',
+    hairColor:  '#111111',
+    bodyColor:  '#336633',
+    pantsColor: '#224422',
+    wandering: false,
+    facing: 'down',
+    dialogs: [
+      '（このビルの出入口を守っています）',
+      '不審者は発見次第、通報します。',
+      'あなたは…大丈夫そうですね。どうぞ。',
+    ],
+  },
+];
+
+// ================================================================
+//  以下、ゲームエンジン部分（通常は編集不要）
+//  コメントを読めば仕組みが分かるようにしてあります。
+// ================================================================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+
+// ---- キャンバスサイズをウィンドウに合わせる ----
+function resizeCanvas() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', () => { resizeCanvas(); });
+// 画面向き変更時にもリサイズ
+window.addEventListener('orientationchange', () => { setTimeout(resizeCanvas, 200); });
+
+// ---- カメラ（ビューポートオフセット） ----
+const cam = { x: 0, y: 0 };
+
+// ---- プレイヤーオブジェクト ----
+const player = {
+  x:       PLAYER_CFG.startTileX * CFG.TILE + CFG.TILE / 2,
+  y:       PLAYER_CFG.startTileY * CFG.TILE + CFG.TILE / 2,
+  vx: 0, vy: 0,         // 速度（使わないが将来拡張用）
+  hw: 10, hh: 10,       // 衝突判定の半幅・半高さ（変更可能）
+  facing:  'down',      // 向き
+  walkFrame: 0,         // 歩きアニメフレーム
+  walkTimer: 0,
+};
+
+// ---- NPCオブジェクト生成 ----
+const npcs = NPC_DEFS.map((def, i) => ({
+  id: i,
+  x:  def.tileX * CFG.TILE + CFG.TILE / 2,
+  y:  def.tileY * CFG.TILE + CFG.TILE / 2,
+  hw: 9, hh: 9,
+  facing:      def.facing || 'down',
+  wandering:   def.wandering,
+  wanderArea:  def.wanderArea || null,
+  walkFrame:   0,
+  walkTimer:   0,
+  wTimer:      0,     // 次の方向転換まで残りフレーム
+  wDx: 0, wDy: 0,    // 現在の移動方向
+  dialogIndex: 0,
+  // NPC定義の全プロパティを引き継ぐ
+  ...def,
+}));
+
+// ================================================================
+//  入力管理
+// ================================================================
+
+// キーボード状態
+const keys = new Set();
+window.addEventListener('keydown', e => {
+  keys.add(e.key);
+  // Enterキーで会話
+  if (e.key === 'Enter' || e.key === ' ') handleInteract();
+  if (e.key === 'Escape') closeDialog();
+});
+window.addEventListener('keyup', e => keys.delete(e.key));
+
+// ---- タッチ/マウス長押し移動 ----
+let holdActive = false;      // 長押し中か
+let holdTarget = null;       // 長押し先（画面座標）
+let holdTimerId = null;
+let touchStartTime = 0;
+
+function onPointerDown(sx, sy) {
+  touchStartTime = Date.now();
+  holdTimerId = setTimeout(() => {
+    holdActive = true;
+    holdTarget = { x: sx, y: sy };
+  }, CFG.HOLD_MS);
+}
+function onPointerMove(sx, sy) {
+  if (holdActive) holdTarget = { x: sx, y: sy };
+}
+function onPointerUp(sx, sy) {
+  clearTimeout(holdTimerId);
+  const dur = Date.now() - touchStartTime;
+  if (!holdActive && dur < CFG.HOLD_MS + 200) {
+    // タップ → 会話/ダイアログ送り
+    handleTap(sx, sy);
+  }
+  holdActive = false;
+  holdTarget = null;
+}
+
+// タッチイベント（スマホ）
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  onPointerDown(t.clientX, t.clientY);
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  onPointerUp(t.clientX, t.clientY);
+}, { passive: false });
+
+// マウスイベント（PC）
+canvas.addEventListener('mousedown', e => onPointerDown(e.clientX, e.clientY));
+canvas.addEventListener('mousemove', e => onPointerMove(e.clientX, e.clientY));
+canvas.addEventListener('mouseup',   e => onPointerUp(e.clientX, e.clientY));
+
+// ---- Dパッドボタン（モバイル用） ----
+const dpadKeys = {};   // 仮想キー状態
+function bindDpad(id, key) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const press   = e => { e.preventDefault(); dpadKeys[key] = true;  el.classList.add('pressed'); };
+  const release = e => { e.preventDefault(); dpadKeys[key] = false; el.classList.remove('pressed'); };
+  el.addEventListener('touchstart', press,   { passive: false });
+  el.addEventListener('touchend',   release, { passive: false });
+  el.addEventListener('mousedown',  press);
+  el.addEventListener('mouseup',    release);
+}
+bindDpad('btn-up',    'up');
+bindDpad('btn-down',  'down');
+bindDpad('btn-left',  'left');
+bindDpad('btn-right', 'right');
+
+// 会話ボタン
+const talkBtn = document.getElementById('talk-btn');
+talkBtn.addEventListener('click', handleInteract);
+talkBtn.addEventListener('touchend', e => { e.preventDefault(); handleInteract(); });
+
+// ================================================================
+//  ダイアログ（会話）システム
+// ================================================================
+const dialogOverlay = document.getElementById('dialog-overlay');
+const dialogName    = document.getElementById('dialog-name');
+const dialogText    = document.getElementById('dialog-text');
+let dialogOpen = false;
+let dialogNPC  = null;
+let dialogCharIdx = 0;     // テキストタイピング用：現在表示文字数
+let dialogFull = '';        // 表示中の完全テキスト
+let dialogTimer = 0;
+
+function showDialog(npc) {
+  dialogNPC  = npc;
+  dialogName.textContent = npc.name;
+  const text = npc.dialogs[npc.dialogIndex];
+  dialogFull    = text;
+  dialogCharIdx = CFG.TEXT_SPEED === 0 ? text.length : 0;
+  dialogText.innerHTML = '';
+  dialogOverlay.style.display = 'block';
+  dialogOpen = true;
+}
+
+// 1文字ずつ表示するタイピング演出（毎フレーム呼ばれる）
+function updateDialogTyping() {
+  if (!dialogOpen) return;
+  if (dialogCharIdx < dialogFull.length) {
+    dialogTimer++;
+    if (dialogTimer >= CFG.TEXT_SPEED) {
+      dialogTimer = 0;
+      dialogCharIdx++;
+      dialogText.textContent = dialogFull.slice(0, dialogCharIdx);
+    }
+  }
+}
+
+function advanceDialog() {
+  if (!dialogOpen || !dialogNPC) return;
+  // まだ表示途中なら全表示
+  if (dialogCharIdx < dialogFull.length) {
+    dialogCharIdx = dialogFull.length;
+    dialogText.textContent = dialogFull;
+    return;
+  }
+  // 次の台詞へ
+  dialogNPC.dialogIndex = (dialogNPC.dialogIndex + 1) % dialogNPC.dialogs.length;
+  if (dialogNPC.dialogIndex === 0) {
+    // 全台詞を読み終えたら閉じる
+    closeDialog();
+  } else {
+    showDialog(dialogNPC);
+  }
+}
+
+function closeDialog() {
+  dialogOverlay.style.display = 'none';
+  dialogOpen = false;
+  dialogNPC  = null;
+}
+
+// ダイアログボックスをタップ/クリックで次へ
+dialogOverlay.addEventListener('click', advanceDialog);
+
+function handleTap(sx, sy) {
+  if (dialogOpen) { advanceDialog(); return; }
+  // タップ位置がダイアログ上なら無視
+  handleInteract();
+}
+
+function handleInteract() {
+  if (dialogOpen) { advanceDialog(); return; }
+  // 近くのNPCを探す
+  let nearest = null;
+  let nearDist = Infinity;
+  for (const npc of npcs) {
+    const dx = player.x - npc.x;
+    const dy = player.y - npc.y;
+    const d  = Math.sqrt(dx*dx + dy*dy);
+    if (d < CFG.INTERACT_DIST && d < nearDist) {
+      nearest = npc;
+      nearDist = d;
+    }
+  }
+  if (nearest) showDialog(nearest);
+}
+
+// ================================================================
+//  衝突判定
+// ================================================================
+function tileAt(px, py) {
+  const tx = Math.floor(px / CFG.TILE);
+  const ty = Math.floor(py / CFG.TILE);
+  if (tx < 0 || ty < 0 || tx >= MAP_COLS || ty >= MAP_ROWS) return T.WALL;
+  return MAP[ty][tx];
+}
+
+function isWalkable(px, py) {
+  return !SOLID.has(tileAt(px, py));
+}
+
+// 矩形（中心座標+半幅）が全て歩けるか判定
+function canStand(cx, cy, hw, hh) {
+  return isWalkable(cx - hw, cy - hh)
+      && isWalkable(cx + hw, cy - hh)
+      && isWalkable(cx - hw, cy + hh)
+      && isWalkable(cx + hw, cy + hh);
+}
+
+// ================================================================
+//  プレイヤー更新
+// ================================================================
+function updatePlayer() {
+  if (dialogOpen) return;  // 会話中は動かない
+
+  let dx = 0, dy = 0;
+
+  // キーボード入力（WASD + 矢印キー）
+  if (keys.has('ArrowLeft')  || keys.has('a') || keys.has('A') || dpadKeys['left'])  dx -= CFG.PLAYER_SPEED;
+  if (keys.has('ArrowRight') || keys.has('d') || keys.has('D') || dpadKeys['right']) dx += CFG.PLAYER_SPEED;
+  if (keys.has('ArrowUp')    || keys.has('w') || keys.has('W') || dpadKeys['up'])    dy -= CFG.PLAYER_SPEED;
+  if (keys.has('ArrowDown')  || keys.has('s') || keys.has('S') || dpadKeys['down'])  dy += CFG.PLAYER_SPEED;
+
+  // 長押しタッチ：画面タッチ位置に向かって移動
+  if (holdActive && holdTarget) {
+    const wx = holdTarget.x + cam.x;
+    const wy = holdTarget.y + cam.y;
+    const ddx = wx - player.x;
+    const ddy = wy - player.y;
+    const dist = Math.sqrt(ddx*ddx + ddy*ddy);
+    if (dist > 6) {
+      dx = (ddx / dist) * CFG.PLAYER_SPEED;
+      dy = (ddy / dist) * CFG.PLAYER_SPEED;
+    }
+  }
+
+  // 斜め移動の正規化（斜めでも速さが一定になる）
+  if (dx !== 0 && dy !== 0) {
+    const inv = 1 / Math.SQRT2;
+    dx *= inv;
+    dy *= inv;
+  }
+
+  // 向きの更新
+  if (Math.abs(dx) > Math.abs(dy)) {
+    player.facing = dx < 0 ? 'left' : 'right';
+  } else if (dy !== 0) {
+    player.facing = dy < 0 ? 'up' : 'down';
+  }
+
+  // X軸移動と衝突判定（軸分離で壁すり抜けを防ぐ）
+  if (dx !== 0) {
+    const nx = player.x + dx;
+    if (canStand(nx, player.y, player.hw, player.hh)) player.x = nx;
+  }
+  // Y軸移動と衝突判定
+  if (dy !== 0) {
+    const ny = player.y + dy;
+    if (canStand(player.x, ny, player.hw, player.hh)) player.y = ny;
+  }
+
+  // 歩きアニメ更新
+  if (dx !== 0 || dy !== 0) {
+    player.walkTimer++;
+    if (player.walkTimer > 10) {
+      player.walkTimer = 0;
+      player.walkFrame = (player.walkFrame + 1) % 4;
+    }
+  } else {
+    player.walkFrame = 0;
+    player.walkTimer = 0;
+  }
+}
+
+// ================================================================
+//  NPC更新（歩き回り）
+// ================================================================
+function updateNPCs() {
+  for (const npc of npcs) {
+    if (!npc.wandering) continue;
+
+    npc.wTimer--;
+    if (npc.wTimer <= 0) {
+      // ランダムで次の方向を選ぶ（止まる確率: 30%）
+      const choices = [
+        { dx:  1, dy:  0 },
+        { dx: -1, dy:  0 },
+        { dx:  0, dy:  1 },
+        { dx:  0, dy: -1 },
+        { dx:  0, dy:  0 },  // 止まる
+        { dx:  0, dy:  0 },  // 止まる確率を少し上げる
+      ];
+      const c = choices[Math.floor(Math.random() * choices.length)];
+      npc.wDx = c.dx;
+      npc.wDy = c.dy;
+      // 次の方向転換まで 60〜240 フレーム
+      npc.wTimer = 60 + Math.floor(Math.random() * 180);
+
+      // 向き更新
+      if (c.dx < 0) npc.facing = 'left';
+      else if (c.dx > 0) npc.facing = 'right';
+      else if (c.dy < 0) npc.facing = 'up';
+      else if (c.dy > 0) npc.facing = 'down';
+    }
+
+    if (npc.wDx === 0 && npc.wDy === 0) continue;
+
+    const nx = npc.x + npc.wDx * CFG.NPC_SPEED;
+    const ny = npc.y + npc.wDy * CFG.NPC_SPEED;
+
+    // wanderArea の範囲外なら向き転換
+    if (npc.wanderArea) {
+      const { x1, y1, x2, y2 } = npc.wanderArea;
+      const margin = CFG.TILE;
+      if (nx < x1 * CFG.TILE + margin || nx > x2 * CFG.TILE + margin ||
+          ny < y1 * CFG.TILE + margin || ny > y2 * CFG.TILE + margin) {
+        npc.wTimer = 0;
+        continue;
+      }
+    }
+
+    if (canStand(nx, ny, npc.hw, npc.hh)) {
+      npc.x = nx;
+      npc.y = ny;
+    } else {
+      npc.wTimer = 0;  // ぶつかったらすぐ方向転換
+    }
+
+    // 歩きアニメ
+    npc.walkTimer = (npc.walkTimer || 0) + 1;
+    if (npc.walkTimer > 12) {
+      npc.walkTimer = 0;
+      npc.walkFrame = ((npc.walkFrame || 0) + 1) % 4;
+    }
+  }
+}
+
+// ================================================================
+//  カメラ更新
+// ================================================================
+function updateCamera() {
+  const mapW = MAP_COLS * CFG.TILE;
+  const mapH = MAP_ROWS * CFG.TILE;
+
+  // プレイヤーを中心に
+  cam.x = player.x - canvas.width  / 2;
+  cam.y = player.y - canvas.height / 2;
+
+  // マップ端でクランプ
+  cam.x = Math.max(0, Math.min(cam.x, mapW - canvas.width));
+  cam.y = Math.max(0, Math.min(cam.y, mapH - canvas.height));
+}
+
+// ================================================================
+//  描画：タイル
+// ================================================================
+function drawTile(tileType, sx, sy) {
+  const sz = CFG.TILE;
+
+  // 基本色を塗る
+  ctx.fillStyle = TILE_COLOR[tileType] ?? '#888';
+  ctx.fillRect(sx, sy, sz, sz);
+
+  // タイル種別ごとの追加描画
+  switch (tileType) {
+    case T.FLOOR:
+      // 床タイルの格子線（薄く）
+      ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+      ctx.strokeRect(sx, sy, sz, sz);
+      break;
+
+    case T.WALL:
+      // 壁：上辺と左辺を明るく（3D風）
+      ctx.fillStyle = '#5a4f78';
+      ctx.fillRect(sx, sy, sz, 3);
+      ctx.fillRect(sx, sy, 3, sz);
+      ctx.fillStyle = '#2a2040';
+      ctx.fillRect(sx, sy + sz - 3, sz, 3);
+      ctx.fillRect(sx + sz - 3, sy, 3, sz);
+      break;
+
+    case T.DOOR:
+      // ドア：縦の板目
+      ctx.fillStyle = '#5a2c0a';
+      for (let i = 0; i < 3; i++) {
+        ctx.fillRect(sx + 4 + i * 8, sy + 2, 6, sz - 4);
+      }
+      // ドアノブ
+      ctx.fillStyle = '#ffcc44';
+      ctx.beginPath();
+      ctx.arc(sx + sz - 8, sy + sz * 0.55, 3, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+
+    case T.DESK:
+      // 机：天板（少し明るい茶色）
+      ctx.fillStyle = '#b08030';
+      ctx.fillRect(sx + 2, sy + 2, sz - 4, 10);
+      // 木目
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(sx + 6, sy + 4, 2, 8);
+      ctx.fillRect(sx + 14, sy + 4, 2, 8);
+      ctx.fillRect(sx + 22, sy + 4, 2, 8);
+      break;
+
+    case T.SHELF:
+      // 棚：棚板を2本描く
+      ctx.fillStyle = '#1a4e70';
+      ctx.fillRect(sx + 2, sy + sz * 0.33, sz - 4, 3);
+      ctx.fillRect(sx + 2, sy + sz * 0.66, sz - 4, 3);
+      // 棚の本（デコレーション）
+      const bookColors = ['#cc3333','#3388cc','#33aa33','#cc8833'];
+      for (let b = 0; b < 4; b++) {
+        ctx.fillStyle = bookColors[b % bookColors.length];
+        ctx.fillRect(sx + 3 + b * 7, sy + 4, 5, sz * 0.28);
+      }
+      break;
+
+    case T.WINDOW:
+      // 窓：桟
+      ctx.fillStyle = 'rgba(180,230,255,0.4)';
+      ctx.fillRect(sx, sy, sz, sz);
+      ctx.fillStyle = '#5aa0c0';
+      ctx.fillRect(sx + sz / 2 - 1, sy, 3, sz);
+      ctx.fillRect(sx, sy + sz / 2 - 1, sz, 3);
+      // 枠
+      ctx.strokeStyle = '#5aa0c0';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(sx + 1, sy + 1, sz - 2, sz - 2);
+      ctx.lineWidth = 1;
+      break;
+
+    case T.PLANT:
+      // 観葉植物：鉢 + 葉
+      ctx.fillStyle = '#884422';
+      ctx.fillRect(sx + 10, sy + 22, 12, 8);
+      ctx.fillStyle = '#44aa22';
+      ctx.beginPath();
+      ctx.arc(sx + sz / 2, sy + 16, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#22cc44';
+      ctx.beginPath();
+      ctx.arc(sx + sz / 2 - 6, sy + 12, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(sx + sz / 2 + 6, sy + 12, 7, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+
+    case T.RUG:
+      // カーペット：外縁に飾り枠
+      ctx.strokeStyle = '#884444';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(sx + 3, sy + 3, sz - 6, sz - 6);
+      ctx.lineWidth = 1;
+      break;
+
+    case T.COUNTER:
+      // カウンター：上面ライン
+      ctx.fillStyle = '#7a5840';
+      ctx.fillRect(sx + 2, sy + 2, sz - 4, 8);
+      break;
+
+    case T.CHAIR:
+      // 椅子：座面 + 背もたれ
+      ctx.fillStyle = '#8b5a30';
+      ctx.fillRect(sx + 6, sy + 14, 20, 14);
+      ctx.fillRect(sx + 8, sy + 4, 3, 12);
+      ctx.fillRect(sx + 21, sy + 4, 3, 12);
+      ctx.fillRect(sx + 6, sy + 4, 20, 6);
+      break;
+  }
+}
+
+// ================================================================
+//  描画：マップ全体
+// ================================================================
+function drawMap() {
+  // 背景（マップ外の色）
+  ctx.fillStyle = '#1a1525';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 画面内に入るタイルだけ描画（最適化）
+  const startCol = Math.max(0, Math.floor(cam.x / CFG.TILE));
+  const endCol   = Math.min(MAP_COLS - 1, Math.ceil((cam.x + canvas.width) / CFG.TILE));
+  const startRow = Math.max(0, Math.floor(cam.y / CFG.TILE));
+  const endRow   = Math.min(MAP_ROWS - 1, Math.ceil((cam.y + canvas.height) / CFG.TILE));
+
+  for (let row = startRow; row <= endRow; row++) {
+    for (let col = startCol; col <= endCol; col++) {
+      const tile = MAP[row][col];
+      const sx = Math.round(col * CFG.TILE - cam.x);
+      const sy = Math.round(row * CFG.TILE - cam.y);
+      drawTile(tile, sx, sy);
+    }
+  }
+}
+
+// ================================================================
+//  描画：キャラクター（プレイヤー・NPC共通）
+//
+//  ▼▼▼ 画像ファイルを使いたい場合の変更方法 ▼▼▼
+//  1. <head> に <img id="sprite-player" src="player.png" hidden> などを追加
+//  2. この関数の中身を以下のように置き換える:
+//
+//  const img = document.getElementById('sprite-player'); // または'sprite-npc-0'など
+//  const frameW = 32;  // スプライトシートの1フレーム幅
+//  const frameH = 32;  // 1フレーム高さ
+//  const frameX = walkFrame * frameW;
+//  const dirRow = { down:0, left:1, right:2, up:3 }[facing];
+//  ctx.drawImage(img, frameX, dirRow * frameH, frameW, frameH, cx-16, cy-28, 32, 32);
+//
+// ================================================================
+function drawCharacter(cx, cy, facing, walkFrame, cfg, isPlayer) {
+  cx = Math.round(cx);
+  cy = Math.round(cy);
+
+  // 足のアニメーション計算（左右交互に動く）
+  const legSwing = Math.sin(walkFrame * Math.PI / 2) * 3;
+
+  // 影
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 14, 9, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ===== ズボン・足 =====
+  ctx.fillStyle = cfg.pantsColor;
+  // 左足
+  ctx.fillRect(cx - 6, cy + 4, 5, 9);
+  // 右足
+  ctx.fillRect(cx + 1, cy + 4, 5, 9);
+
+  // 靴
+  ctx.fillStyle = cfg.shoeColor;
+  ctx.fillRect(cx - 7, cy + 11, 6, 3);
+  ctx.fillRect(cx + 1, cy + 11, 6, 3);
+
+  // ===== 体 =====
+  ctx.fillStyle = cfg.bodyColor;
+  ctx.fillRect(cx - 8, cy - 8, 16, 13);
+
+  // 腕
+  if (facing === 'left' || facing === 'right') {
+    // 側面向きのとき片腕だけ
+    ctx.fillStyle = cfg.bodyColor;
+    ctx.fillRect(facing === 'left' ? cx - 12 : cx + 8, cy - 6, 4, 10);
+  } else {
+    // 前後向きのとき両腕
+    ctx.fillStyle = cfg.bodyColor;
+    ctx.fillRect(cx - 12, cy - 6, 4, 10);
+    ctx.fillRect(cx + 8, cy - 6, 4, 10);
+  }
+
+  // ===== 首 =====
+  ctx.fillStyle = cfg.skinColor;
+  ctx.fillRect(cx - 3, cy - 12, 6, 5);
+
+  // ===== 頭 =====
+  ctx.fillStyle = cfg.skinColor;
+  ctx.fillRect(cx - 8, cy - 24, 16, 14);
+
+  // ===== 髪 =====
+  ctx.fillStyle = cfg.hairColor;
+  ctx.fillRect(cx - 8, cy - 24, 16, 5);   // 前髪
+  if (facing === 'left')  { ctx.fillRect(cx - 8, cy - 24, 4, 14); }   // 横髪（左向き）
+  if (facing === 'right') { ctx.fillRect(cx + 4, cy - 24, 4, 14); }   // 横髪（右向き）
+  if (facing === 'up')    { ctx.fillRect(cx - 8, cy - 24, 16, 14); }  // 後ろ向きは全部髪
+
+  // ===== 顔パーツ（後ろ向き以外） =====
+  if (facing !== 'up') {
+    ctx.fillStyle = '#222';
+    if (facing === 'down') {
+      // 正面：両目
+      ctx.fillRect(cx - 5, cy - 18, 3, 3);
+      ctx.fillRect(cx + 2, cy - 18, 3, 3);
+      // 口
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(cx - 3, cy - 13, 6, 2);
+    } else if (facing === 'left') {
+      ctx.fillRect(cx - 6, cy - 18, 2, 3);
+    } else if (facing === 'right') {
+      ctx.fillRect(cx + 4, cy - 18, 2, 3);
+    }
+  }
+
+  // プレイヤーには王冠アイコン（オプション：削除可能）
+  if (isPlayer) {
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('★', cx, cy - 28);
+  }
+}
+
+// NPCの名前タグ（頭上に表示）
+function drawNameTag(cx, cy, name) {
+  ctx.font = 'bold 10px "Hiragino Sans","Yu Gothic UI",sans-serif';
+  ctx.textAlign = 'center';
+  const tw = ctx.measureText(name).width;
+  // 背景
+  ctx.fillStyle = 'rgba(0,0,20,0.7)';
+  roundRect(cx - tw/2 - 4, cy - 38, tw + 8, 14, 4);
+  ctx.fill();
+  // テキスト
+  ctx.fillStyle = '#ccddff';
+  ctx.fillText(name, cx, cy - 28);
+}
+
+// 会話アイコン（近くにいるとき）
+function drawInteractIcon(cx, cy, t) {
+  const bounce = Math.sin(t * 0.1) * 3;
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('💬', cx, cy - 42 + bounce);
+}
+
+// 角丸矩形ヘルパー
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+// ================================================================
+//  ミニマップ描画（左上）
+// ================================================================
+function drawMinimap() {
+  const sc  = CFG.MINIMAP_SCALE;
+  const mw  = MAP_COLS * sc;
+  const mh  = MAP_ROWS * sc;
+  const ox  = 12;   // 画面左端からのX位置（変更可能）
+  const oy  = 12;   // 画面上端からのY位置（変更可能）
+
+  ctx.globalAlpha = CFG.MINIMAP_ALPHA;
+
+  // 外枠
+  ctx.fillStyle = 'rgba(0,0,20,0.8)';
+  ctx.fillRect(ox - 1, oy - 1, mw + 2, mh + 2);
+
+  // タイル
+  for (let r = 0; r < MAP_ROWS; r++) {
+    for (let c = 0; c < MAP_COLS; c++) {
+      ctx.fillStyle = TILE_COLOR[MAP[r][c]] ?? '#888';
+      ctx.fillRect(ox + c * sc, oy + r * sc, sc, sc);
+    }
+  }
+
+  // NPCドット（緑）
+  ctx.fillStyle = '#00ff88';
+  for (const npc of npcs) {
+    const nx = ox + (npc.x / CFG.TILE) * sc;
+    const ny = oy + (npc.y / CFG.TILE) * sc;
+    ctx.fillRect(Math.round(nx) - 1, Math.round(ny) - 1, 3, 3);
+  }
+
+  // プレイヤードット（赤）
+  ctx.fillStyle = '#ff4444';
+  const px = ox + (player.x / CFG.TILE) * sc;
+  const py = oy + (player.y / CFG.TILE) * sc;
+  ctx.fillRect(Math.round(px) - 2, Math.round(py) - 2, 4, 4);
+
+  ctx.globalAlpha = 1.0;
+}
+
+// ================================================================
+//  操作説明オーバーレイ（左下にフェード表示）
+// ================================================================
+let hintAlpha = 1.0;   // 最初だけ表示してフェード
+let hintTimer = 300;   // 表示フレーム数（0になったらフェードアウト）
+function drawHint() {
+  if (hintAlpha <= 0) return;
+  hintTimer--;
+  if (hintTimer <= 0) hintAlpha = Math.max(0, hintAlpha - 0.02);
+
+  ctx.globalAlpha = hintAlpha * 0.8;
+  ctx.font = '11px "Hiragino Sans","Yu Gothic UI",sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#aabbff';
+  const tx = 14, ty = canvas.height - 16;
+  ctx.fillText('長押し/ドラッグで移動  |  近づいてタップ/Enterで会話', tx, ty);
+  ctx.globalAlpha = 1.0;
+}
+
+// ================================================================
+//  メインゲームループ
+// ================================================================
+let frameCount = 0;
+let gameStarted = false;
+
+function gameLoop() {
+  frameCount++;
+
+  // 更新
+  updatePlayer();
+  updateNPCs();
+  updateCamera();
+  updateDialogTyping();
+
+  // 描画
+  drawMap();
+
+  // Y座標でソート（奥のキャラが後ろに見える奥行き感）
+  const entities = [
+    { type: 'player', y: player.y },
+    ...npcs.map((n, i) => ({ type: 'npc', idx: i, y: n.y })),
+  ];
+  entities.sort((a, b) => a.y - b.y);
+
+  for (const ent of entities) {
+    if (ent.type === 'player') {
+      const cx = Math.round(player.x - cam.x);
+      const cy = Math.round(player.y - cam.y);
+      drawCharacter(cx, cy, player.facing, player.walkFrame, PLAYER_CFG, true);
+    } else {
+      const npc = npcs[ent.idx];
+      const cx = Math.round(npc.x - cam.x);
+      const cy = Math.round(npc.y - cam.y);
+      drawCharacter(cx, cy, npc.facing, npc.walkFrame || 0, npc, false);
+      drawNameTag(cx, cy, npc.name);
+
+      // 近いNPCに会話アイコンを表示
+      if (!dialogOpen) {
+        const dx = player.x - npc.x;
+        const dy = player.y - npc.y;
+        if (Math.sqrt(dx*dx + dy*dy) < CFG.INTERACT_DIST) {
+          drawInteractIcon(cx, cy, frameCount);
+        }
+      }
+    }
+  }
+
+  drawMinimap();
+  drawHint();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ================================================================
+//  スタートボタン
+// ================================================================
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.getElementById('hint-overlay').style.display = 'none';
+  gameStarted = true;
+
+  // タッチデバイスならDパッドと会話ボタンを表示
+  const isTouch = navigator.maxTouchPoints > 0;
+  if (CFG.DPAD_SHOW && isTouch) {
+    document.getElementById('dpad').classList.add('visible');
+    document.getElementById('talk-btn').classList.add('visible');
+  }
+});
+
+// ゲーム開始
+gameLoop();
+</script>
+</body>
+</html>
