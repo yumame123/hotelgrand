@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>廻廊屋敷</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0804;
+    color: #c8a96e;
+    font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'MS Mincho', serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+  }
+  #game-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+  }
+  #canvas-wrapper {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    display: block;
+  }
+  #ui-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+  }
+  /* Dialog box */
+  #dialog-box {
+    display: none;
+    position: absolute;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(480px, 92vw);
+    background: rgba(10,8,4,0.95);
+    border: 2px solid #8b6914;
+    border-radius: 2px;
+    padding: 12px 16px;
+    pointer-events: auto;
+    box-shadow: 0 0 20px rgba(139,105,20,0.3), inset 0 0 30px rgba(0,0,0,0.5);
+  }
+  #dialog-box::before {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px; right: 3px; bottom: 3px;
+    border: 1px solid #5a440e;
+    pointer-events: none;
+  }
+  #dialog-speaker {
+    font-size: 11px;
+    color: #e8c87e;
+    margin-bottom: 4px;
+    letter-spacing: 2px;
+  }
+  #dialog-text {
+    font-size: 13px;
+    line-height: 1.8;
+    color: #c8a96e;
+    min-height: 40px;
+  }
+  #dialog-close {
+    position: absolute;
+    top: 8px; right: 10px;
+    font-size: 10px;
+    color: #8b6914;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  /* Room memo */
+  #memo-box {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: min(200px, 40vw);
+    pointer-events: auto;
+  }
+  #memo-label {
+    font-size: 10px;
+    color: #8b6914;
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+  }
+  #memo-input {
+    width: 100%;
+    background: rgba(10,8,4,0.9);
+    border: 1px solid #5a440e;
+    color: #c8a96e;
+    font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'MS Mincho', serif;
+    font-size: 11px;
+    padding: 6px;
+    resize: none;
+    height: 80px;
+    outline: none;
+  }
+  #memo-save {
+    margin-top: 4px;
+    width: 100%;
+    background: #2a1e08;
+    border: 1px solid #8b6914;
+    color: #c8a96e;
+    font-family: inherit;
+    font-size: 10px;
+    padding: 4px;
+    cursor: pointer;
+    letter-spacing: 2px;
+  }
+  #memo-save:active { background: #3a2e18; }
+  /* Doll memo */
+  #doll-memo-box {
+    display: none;
+    position: absolute;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(480px, 92vw);
+    background: rgba(10,8,4,0.95);
+    border: 2px solid #6b4c8b;
+    border-radius: 2px;
+    padding: 12px 16px;
+    pointer-events: auto;
+    box-shadow: 0 0 20px rgba(107,76,139,0.3);
+  }
+  #doll-memo-label {
+    font-size: 10px;
+    color: #b87cdf;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+  #doll-memo-input {
+    width: 100%;
+    background: rgba(20,10,30,0.8);
+    border: 1px solid #5a3a7a;
+    color: #d4a8f0;
+    font-family: inherit;
+    font-size: 11px;
+    padding: 6px;
+    resize: none;
+    height: 60px;
+    outline: none;
+  }
+  #doll-memo-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  #doll-memo-save, #doll-memo-cancel {
+    flex: 1;
+    background: #1a0e2a;
+    border: 1px solid #6b4c8b;
+    color: #d4a8f0;
+    font-family: inherit;
+    font-size: 10px;
+    padding: 4px;
+    cursor: pointer;
+    letter-spacing: 2px;
+  }
+  #doll-memo-cancel { border-color: #5a440e; color: #c8a96e; }
+  /* Controls */
+  #controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 85px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    background: linear-gradient(transparent, rgba(5,3,1,0.95));
+  }
+  #dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 28px);
+    grid-template-rows: repeat(3, 28px);
+    gap: 2px;
+  }
+  .dpad-btn {
+    background: rgba(30,20,8,0.8);
+    border: 1px solid #5a440e;
+    color: #c8a96e;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 2px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dpad-btn:active { background: rgba(60,40,12,0.9); }
+  .dpad-center { background: rgba(20,14,6,0.5); border-color: #2a1e08; }
+  #action-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-end;
+  }
+  .action-btn {
+    background: rgba(30,20,8,0.8);
+    border: 1px solid #5a440e;
+    color: #c8a96e;
+    font-family: inherit;
+    font-size: 9px;
+    padding: 5px 10px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    border-radius: 2px;
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+  }
+  .action-btn:active { background: rgba(60,40,12,0.9); }
+  /* Status */
+  #status-bar {
+    position: absolute;
+    top: 6px;
+    left: 10px;
+    font-size: 9px;
+    color: #5a440e;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="canvas-wrapper">
+    <canvas id="gameCanvas"></canvas>
+    <div id="ui-overlay">
+      <div id="status-bar">廻廊屋敷</div>
+      <!-- Room memo -->
+      <div id="memo-box">
+        <div id="memo-label">【部屋のメモ】</div>
+        <textarea id="memo-input" placeholder="ここにメモを残す..."></textarea>
+        <button id="memo-save">保存する</button>
+      </div>
+      <!-- Dialog -->
+      <div id="dialog-box">
+        <div id="dialog-speaker"></div>
+        <div id="dialog-text"></div>
+        <div id="dialog-close">✕ 閉じる</div>
+      </div>
+      <!-- Doll memo -->
+      <div id="doll-memo-box">
+        <div id="doll-memo-label">【人形へのメモを残す】</div>
+        <textarea id="doll-memo-input" placeholder="人形へのメッセージ..."></textarea>
+        <div id="doll-memo-buttons">
+          <button id="doll-memo-save">残す</button>
+          <button id="doll-memo-cancel">やめる</button>
+        </div>
+      </div>
+      <!-- Controls -->
+      <div id="controls">
+        <div id="dpad">
+          <div></div>
+          <div class="dpad-btn" data-dir="up">▲</div>
+          <div></div>
+          <div class="dpad-btn" data-dir="left">◀</div>
+          <div class="dpad-center"></div>
+          <div class="dpad-btn" data-dir="right">▶</div>
+          <div></div>
+          <div class="dpad-btn" data-dir="down">▼</div>
+          <div></div>
+        </div>
+        <div id="action-btns">
+          <button class="action-btn" id="btn-memo">部屋メモ</button>
+          <button class="action-btn" id="btn-interact">調べる</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== CONSTANTS =====
+const ROOMS_X = 10;       // rooms horizontally
+const ROOMS_Y = 10;       // rooms vertically
+const ROOM_TILES = 7;     // tiles per room (interior)
+const ENGAWA = 1;         // engawa border in tiles
+
+// Tile size in pixels (will be scaled)
+const BASE_TILE = 8;
+
+// Total map in tiles
+// engawa(1) + [room(7) + fusuma(1)] * 10 - fusuma(1) + engawa(1)
+// = 1 + (7+1)*10 - 1 + 1 = 1 + 80 - 1 + 1 = 81
+const ROOM_STEP = ROOM_TILES + 1; // 8 tiles per room slot (7 + 1 fusuma)
+const MAP_W = ENGAWA + ROOM_STEP * ROOMS_X - 1 + ENGAWA; // 1 + 8*10 - 1 + 1 = 81
+const MAP_H = ENGAWA + ROOM_STEP * ROOMS_Y - 1 + ENGAWA;
+
+// Canvas
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Scale
+let SCALE = 2;
+let VIEW_W, VIEW_H; // in tiles
+const VIEW_TILES_W = 15;
+const VIEW_TILES_H = 11;
+
+// ===== COLOR PALETTE =====
+const C = {
+  bg:       '#0a0804',
+  floor:    '#1a1208',
+  floorDark:'#130d06',
+  tatami:   '#1e1a0c',
+  tatamiLine:'#2a2410',
+  engawa:   '#161008',
+  wall:     '#2d1f0a',
+  wallDark: '#1f1506',
+  fusuma:   '#3d2e10',
+  fusumaLine:'#5a440e',
+  fusOpen:  '#251808',
+  player:   '#e8d08a',
+  playerShadow: '#8b6914',
+  doll0:    '#c87868', // 桜 - rosy
+  doll1:    '#78a8c8', // 水 - blue
+  doll2:    '#a8c878', // 若葉 - green
+  doll3:    '#c8a078', // 山吹 - amber
+  doll4:    '#a878c8', // 紫 - purple
+  memo:     '#c8a96e',
+  shadow:   'rgba(0,0,0,0.6)',
+  ambient:  'rgba(10,5,0,0.3)',
+};
+
+// ===== MAP GENERATION =====
+// Tile types
+const T = {
+  WALL: 0,
+  FLOOR: 1,
+  ENGAWA: 2,
+  FUSUMA_H: 3,  // horizontal fusuma (E-W passage)
+  FUSUMA_V: 4,  // vertical fusuma (N-S passage)
+};
+
+const map = new Uint8Array(MAP_W * MAP_H);
+
+function tileAt(x, y) {
+  if (x < 0 || x >= MAP_W || y < 0 || y >= MAP_H) return T.WALL;
+  return map[y * MAP_W + x];
+}
+function setTile(x, y, t) {
+  if (x >= 0 && x < MAP_W && y >= 0 && y < MAP_H) map[y * MAP_W + x] = t;
+}
+
+function isPassable(x, y) {
+  const t = tileAt(x, y);
+  return t === T.FLOOR || t === T.ENGAWA || t === T.FUSUMA_H || t === T.FUSUMA_V;
+}
+
+// Get room top-left tile
+function roomOrigin(rx, ry) {
+  return {
+    x: ENGAWA + rx * ROOM_STEP,
+    y: ENGAWA + ry * ROOM_STEP,
+  };
+}
+
+// Get which room a tile is in (or -1 for engawa/wall)
+function tileToRoom(tx, ty) {
+  // engawa border
+  if (tx === 0 || ty === 0 || tx === MAP_W-1 || ty === MAP_H-1) return null;
+  const ox = tx - ENGAWA;
+  const oy = ty - ENGAWA;
+  const rx = Math.floor(ox / ROOM_STEP);
+  const ry = Math.floor(oy / ROOM_STEP);
+  if (rx < 0 || rx >= ROOMS_X || ry < 0 || ry >= ROOMS_Y) return null;
+  return { rx, ry };
+}
+
+function buildMap() {
+  // Fill all with wall
+  map.fill(T.WALL);
+
+  // Engawa (outer border)
+  for (let x = 0; x < MAP_W; x++) {
+    setTile(x, 0, T.ENGAWA);
+    setTile(x, MAP_H-1, T.ENGAWA);
+  }
+  for (let y = 0; y < MAP_H; y++) {
+    setTile(0, y, T.ENGAWA);
+    setTile(MAP_W-1, y, T.ENGAWA);
+  }
+
+  // Rooms and fusuma
+  for (let ry = 0; ry < ROOMS_Y; ry++) {
+    for (let rx = 0; rx < ROOMS_X; rx++) {
+      const { x: ox, y: oy } = roomOrigin(rx, ry);
+      // Floor tiles
+      for (let dy = 0; dy < ROOM_TILES; dy++) {
+        for (let dx = 0; dx < ROOM_TILES; dx++) {
+          setTile(ox + dx, oy + dy, T.FLOOR);
+        }
+      }
+      // East fusuma (if not last column)
+      if (rx < ROOMS_X - 1) {
+        const fx = ox + ROOM_TILES;
+        // 3 fusuma tiles centered (out of 7)
+        for (let dy = 0; dy < ROOM_TILES; dy++) {
+          setTile(fx, oy + dy, T.WALL);
+        }
+        // Opening: tiles 2,3,4 (center 3)
+        setTile(fx, oy + 2, T.FUSUMA_H);
+        setTile(fx, oy + 3, T.FUSUMA_H);
+        setTile(fx, oy + 4, T.FUSUMA_H);
+      }
+      // South fusuma (if not last row)
+      if (ry < ROOMS_Y - 1) {
+        const fy = oy + ROOM_TILES;
+        for (let dx = 0; dx < ROOM_TILES; dx++) {
+          setTile(ox + dx, fy, T.WALL);
+        }
+        setTile(ox + 2, fy, T.FUSUMA_V);
+        setTile(ox + 3, fy, T.FUSUMA_V);
+        setTile(ox + 4, fy, T.FUSUMA_V);
+      }
+    }
+  }
+
+  // Engawa connections: each outer room connects to engawa
+  // Left engawa
+  for (let ry = 0; ry < ROOMS_Y; ry++) {
+    const { y: oy } = roomOrigin(0, ry);
+    setTile(0, oy + 3, T.ENGAWA); // passage tile already engawa
+  }
+  // Top engawa
+  for (let rx = 0; rx < ROOMS_X; rx++) {
+    const { x: ox } = roomOrigin(rx, 0);
+    setTile(ox + 3, 0, T.ENGAWA);
+  }
+  // Right/bottom already engawa border
+
+  // Engawa is all connected along border
+  // Make sure engawa itself is fully walkable
+  for (let x = 0; x < MAP_W; x++) {
+    if (tileAt(x, 0) === T.WALL) setTile(x, 0, T.ENGAWA);
+    if (tileAt(x, MAP_H-1) === T.WALL) setTile(x, MAP_H-1, T.ENGAWA);
+  }
+  for (let y = 0; y < MAP_H; y++) {
+    if (tileAt(0, y) === T.WALL) setTile(0, y, T.ENGAWA);
+    if (tileAt(MAP_W-1, y) === T.WALL) setTile(MAP_W-1, y, T.ENGAWA);
+  }
+}
+
+buildMap();
+
+// ===== ROOM MEMOS =====
+const roomMemos = {}; // key: "rx,ry" -> string
+
+// ===== DOLL DEFINITIONS =====
+const DOLLS_DEF = [
+  {
+    name: '桜',
+    color: C.doll0,
+    speed: 0.6,
+    personality: 'cheerful',
+    greetings: ['あら、こんにちは♪', 'ごきげんよう！', 'まあ、お会いできて嬉しいわ。', 'うふふ、また会いましたね。', '今日もよい一日ですわ！'],
+    greetSelf: ['きゃっ、わたくしったら！', 'あらまあ、おはよう！'],
+    memo: null,
+  },
+  {
+    name: '水',
+    color: C.doll1,
+    speed: 0.4,
+    personality: 'calm',
+    greetings: ['…。', 'ふむ。', 'これは奇遇。', 'また会いましたね。', '…どうも。'],
+    greetSelf: ['…ほう。', '…なるほど。'],
+    memo: null,
+  },
+  {
+    name: '若葉',
+    color: C.doll2,
+    speed: 0.9,
+    personality: 'energetic',
+    greetings: ['やあやあ！', 'おーっす！', 'ひさしぶり！（さっきぶり！）', 'げんきー？', '走ってたら会っちゃった！'],
+    greetSelf: ['はわっ！', 'どわわ！'],
+    memo: null,
+  },
+  {
+    name: '山吹',
+    color: C.doll3,
+    speed: 0.5,
+    personality: 'wise',
+    greetings: ['おお、これは。', 'ご縁がありますなあ。', '不思議なものですね。', 'またお会いしましたか。', '…いやはや。'],
+    greetSelf: ['むむ。', 'ほほう。'],
+    memo: null,
+  },
+  {
+    name: '紫',
+    color: C.doll4,
+    speed: 0.35,
+    personality: 'mysterious',
+    greetings: ['……', '運命ですね。', '出会いとは不思議。', '…また、あなたですか。', '月の巡りのように。'],
+    greetSelf: ['あら…わたしと…？', '……鏡の夢。'],
+    memo: null,
+  },
+];
+
+// ===== ENTITIES =====
+class Entity {
+  constructor(tx, ty) {
+    this.tx = tx; this.ty = ty; // tile position
+    this.px = tx * BASE_TILE; this.py = ty * BASE_TILE; // pixel position
+    this.targetX = tx; this.targetY = ty;
+    this.moving = false;
+    this.moveProgress = 0;
+    this.moveSpeed = 1; // tiles/sec
+    this.dir = 0; // 0=down,1=left,2=right,3=up
+    this.facing = { dx: 0, dy: 1 };
+  }
+
+  moveTo(tx, ty) {
+    if (this.moving) return false;
+    if (!isPassable(tx, ty)) return false;
+    this.targetX = tx;
+    this.targetY = ty;
+    this.moving = true;
+    this.moveProgress = 0;
+    const dx = tx - this.tx;
+    const dy = ty - this.ty;
+    if (dx > 0) { this.dir = 2; this.facing = { dx: 1, dy: 0 }; }
+    else if (dx < 0) { this.dir = 1; this.facing = { dx: -1, dy: 0 }; }
+    else if (dy > 0) { this.dir = 0; this.facing = { dx: 0, dy: 1 }; }
+    else if (dy < 0) { this.dir = 3; this.facing = { dx: 0, dy: -1 }; }
+    return true;
+  }
+
+  update(dt) {
+    if (this.moving) {
+      this.moveProgress += dt * this.moveSpeed;
+      if (this.moveProgress >= 1) {
+        this.tx = this.targetX;
+        this.ty = this.targetY;
+        this.px = this.tx * BASE_TILE;
+        this.py = this.ty * BASE_TILE;
+        this.moving = false;
+        this.moveProgress = 1;
+        this.onLanded();
+      } else {
+        this.px = (this.tx + (this.targetX - this.tx) * this.moveProgress) * BASE_TILE;
+        this.py = (this.ty + (this.targetY - this.ty) * this.moveProgress) * BASE_TILE;
+      }
+    }
+  }
+
+  onLanded() {}
+
+  getTile() {
+    return { tx: Math.round(this.px / BASE_TILE), ty: Math.round(this.py / BASE_TILE) };
+  }
+}
+
+// ===== PLAYER =====
+class Player extends Entity {
+  constructor() {
+    const start = roomOrigin(5, 5);
+    super(start.x + 3, start.y + 3);
+    this.moveSpeed = 8;
+    this.inputQueue = [];
+    this.animFrame = 0;
+    this.animTimer = 0;
+  }
+
+  queueMove(dx, dy) {
+    if (this.inputQueue.length < 2) this.inputQueue.push({ dx, dy });
+  }
+
+  update(dt) {
+    this.animTimer += dt;
+    if (this.animTimer > 0.2) { this.animTimer = 0; this.animFrame = (this.animFrame + 1) % 4; }
+    if (!this.moving && this.inputQueue.length > 0) {
+      const { dx, dy } = this.inputQueue.shift();
+      this.moveTo(this.tx + dx, this.ty + dy);
+    }
+    super.update(dt);
+  }
+}
+
+// ===== DOLL =====
+class Doll extends Entity {
+  constructor(def, index) {
+    // Random start position in engawa or room
+    const pos = randomPassableTile();
+    super(pos.x, pos.y);
+    this.def = def;
+    this.index = index;
+    this.moveSpeed = def.speed * 4;
+    this.thinkTimer = Math.random() * 2;
+    this.thinkDelay = 0.5 + Math.random() * 1.5 / def.speed;
+    this.animFrame = Math.floor(Math.random() * 4);
+    this.animTimer = Math.random();
+    this.greetCooldown = 0;
+    this.recentlyMet = new Set(); // entity ids
+  }
+
+  update(dt) {
+    this.animTimer += dt;
+    if (this.animTimer > 0.25) { this.animTimer = 0; this.animFrame = (this.animFrame + 1) % 4; }
+    if (this.greetCooldown > 0) this.greetCooldown -= dt;
+
+    if (!this.moving) {
+      this.thinkTimer -= dt;
+      if (this.thinkTimer <= 0) {
+        this.thinkTimer = this.thinkDelay + Math.random() * 0.5;
+        this.think();
+      }
+    }
+    super.update(dt);
+  }
+
+  think() {
+    // Random direction with bias toward wandering
+    const dirs = [
+      { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+    ];
+    // Sometimes stay
+    if (Math.random() < 0.15) return;
+    // Shuffle
+    for (let i = dirs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+    }
+    for (const d of dirs) {
+      const nx = this.tx + d.dx;
+      const ny = this.ty + d.dy;
+      if (isPassable(nx, ny)) {
+        this.moveTo(nx, ny);
+        break;
+      }
+    }
+  }
+
+  onLanded() {
+    // Check proximity to player and other dolls
+    this.checkGreet(player, 'player');
+    dolls.forEach((d, i) => {
+      if (d !== this) this.checkGreet(d, 'doll' + i);
+    });
+  }
+
+  checkGreet(other, id) {
+    if (this.greetCooldown > 0) return;
+    const dist = Math.abs(this.tx - other.tx) + Math.abs(this.ty - other.ty);
+    if (dist <= 2 && !this.recentlyMet.has(id)) {
+      this.recentlyMet.add(id);
+      setTimeout(() => this.recentlyMet.delete(id), 8000);
+      this.greetCooldown = 4;
+
+      const isPlayer = id === 'player';
+      const otherDoll = isPlayer ? null : dolls.find((d, i) => 'doll' + i === id);
+
+      setTimeout(() => {
+        if (isPlayer) {
+          showDollGreet(this, true);
+        } else {
+          showDollGreet(this, false, otherDoll);
+        }
+      }, 300);
+    }
+  }
+}
+
+function randomPassableTile() {
+  for (let attempts = 0; attempts < 1000; attempts++) {
+    const x = Math.floor(Math.random() * MAP_W);
+    const y = Math.floor(Math.random() * MAP_H);
+    if (isPassable(x, y)) return { x, y };
+  }
+  return { x: 5, y: 5 };
+}
+
+// ===== GAME STATE =====
+const player = new Player();
+const dolls = DOLLS_DEF.map((def, i) => new Doll(def, i));
+
+// Camera (in pixels)
+let camX = 0, camY = 0;
+
+// ===== DIALOG =====
+let dialogTimeout = null;
+let pendingDollMemo = null;
+
+function showDialog(speaker, text, duration = 4000) {
+  const box = document.getElementById('dialog-box');
+  document.getElementById('dialog-speaker').textContent = speaker;
+  document.getElementById('dialog-text').textContent = text;
+  box.style.display = 'block';
+  if (dialogTimeout) clearTimeout(dialogTimeout);
+  dialogTimeout = setTimeout(() => {
+    box.style.display = 'none';
+  }, duration);
+}
+
+function showDollGreet(doll, withPlayer, otherDoll) {
+  const g = doll.def.greetings[Math.floor(Math.random() * doll.def.greetings.length)];
+  let fullText = g;
+
+  // If doll has memo and this is player encounter, show it
+  if (withPlayer && doll.def.memo) {
+    fullText = g + '\n「' + doll.def.memo + '」';
+  }
+
+  showDialog(`【${doll.def.name}】`, fullText, 3500);
+
+  // Offer doll memo input when meeting player
+  if (withPlayer) {
+    setTimeout(() => {
+      showDollMemoPrompt(doll);
+    }, 500);
+  }
+}
+
+function showDollMemoPrompt(doll) {
+  pendingDollMemo = doll;
+  const box = document.getElementById('doll-memo-box');
+  const input = document.getElementById('doll-memo-input');
+  input.value = doll.def.memo || '';
+  input.placeholder = `${doll.def.name}へのメモ...`;
+  box.style.display = 'block';
+}
+
+document.getElementById('doll-memo-save').addEventListener('click', () => {
+  if (pendingDollMemo) {
+    pendingDollMemo.def.memo = document.getElementById('doll-memo-input').value || null;
+    pendingDollMemo = null;
+  }
+  document.getElementById('doll-memo-box').style.display = 'none';
+});
+document.getElementById('doll-memo-cancel').addEventListener('click', () => {
+  pendingDollMemo = null;
+  document.getElementById('doll-memo-box').style.display = 'none';
+});
+
+document.getElementById('dialog-close').addEventListener('click', () => {
+  document.getElementById('dialog-box').style.display = 'none';
+  if (dialogTimeout) clearTimeout(dialogTimeout);
+});
+
+// ===== MEMO =====
+let memoOpen = false;
+let currentMemoRoom = null;
+
+document.getElementById('btn-memo').addEventListener('click', () => {
+  memoOpen = !memoOpen;
+  const room = tileToRoom(player.tx, player.ty);
+  const key = room ? `${room.rx},${room.ry}` : 'engawa';
+  currentMemoRoom = key;
+  const box = document.getElementById('memo-box');
+  if (memoOpen) {
+    document.getElementById('memo-input').value = roomMemos[key] || '';
+    box.style.display = 'block';
+  } else {
+    box.style.display = 'none';
+  }
+});
+
+document.getElementById('memo-save').addEventListener('click', () => {
+  if (currentMemoRoom) {
+    const val = document.getElementById('memo-input').value;
+    if (val) roomMemos[currentMemoRoom] = val;
+    else delete roomMemos[currentMemoRoom];
+  }
+  document.getElementById('memo-box').style.display = 'none';
+  memoOpen = false;
+});
+
+document.getElementById('btn-interact').addEventListener('click', () => {
+  // Show room memo if any
+  const room = tileToRoom(player.tx, player.ty);
+  const key = room ? `${room.rx},${room.ry}` : 'engawa';
+  if (roomMemos[key]) {
+    showDialog('【部屋のメモ】', roomMemos[key], 5000);
+  } else {
+    // Describe location
+    if (room) {
+      showDialog('【場所】', `廻廊屋敷 ${room.rx + 1}の間・${room.ry + 1}列`, 2000);
+    } else {
+      showDialog('【場所】', '縁側', 2000);
+    }
+  }
+});
+
+// ===== INPUT =====
+const keys = {};
+document.addEventListener('keydown', e => {
+  if (keys[e.key]) return;
+  keys[e.key] = true;
+  switch (e.key) {
+    case 'ArrowUp': case 'w': player.queueMove(0, -1); break;
+    case 'ArrowDown': case 's': player.queueMove(0, 1); break;
+    case 'ArrowLeft': case 'a': player.queueMove(-1, 0); break;
+    case 'ArrowRight': case 'd': player.queueMove(1, 0); break;
+  }
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// D-pad touch
+document.querySelectorAll('.dpad-btn').forEach(btn => {
+  const handlePress = (e) => {
+    e.preventDefault();
+    const dir = btn.dataset.dir;
+    if (dir === 'up') player.queueMove(0, -1);
+    else if (dir === 'down') player.queueMove(0, 1);
+    else if (dir === 'left') player.queueMove(-1, 0);
+    else if (dir === 'right') player.queueMove(1, 0);
+  };
+  btn.addEventListener('touchstart', handlePress, { passive: false });
+  btn.addEventListener('mousedown', handlePress);
+});
+
+// Touch swipe
+let touchStart = null;
+canvas.addEventListener('touchstart', e => {
+  touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}, { passive: true });
+canvas.addEventListener('touchend', e => {
+  if (!touchStart) return;
+  const dx = e.changedTouches[0].clientX - touchStart.x;
+  const dy = e.changedTouches[0].clientY - touchStart.y;
+  const adx = Math.abs(dx), ady = Math.abs(dy);
+  if (Math.max(adx, ady) > 20) {
+    if (adx > ady) player.queueMove(dx > 0 ? 1 : -1, 0);
+    else player.queueMove(0, dy > 0 ? 1 : -1);
+  }
+  touchStart = null;
+}, { passive: true });
+
+// ===== DRAWING =====
+function resize() {
+  const wrapper = document.getElementById('canvas-wrapper');
+  const w = wrapper.clientWidth;
+  const h = wrapper.clientHeight - 85; // leave room for controls
+  SCALE = Math.max(2, Math.min(
+    Math.floor(w / (VIEW_TILES_W * BASE_TILE)),
+    Math.floor(h / (VIEW_TILES_H * BASE_TILE))
+  ));
+  canvas.width = VIEW_TILES_W * BASE_TILE * SCALE;
+  canvas.height = VIEW_TILES_H * BASE_TILE * SCALE;
+  ctx.imageSmoothingEnabled = false;
+}
+
+function worldToScreen(wx, wy) {
+  return {
+    sx: (wx - camX) * SCALE,
+    sy: (wy - camY) * SCALE,
+  };
+}
+
+// Tatami pattern cache
+let tatamiCanvas = null;
+function getTatamiPattern() {
+  if (tatamiCanvas) return tatamiCanvas;
+  tatamiCanvas = document.createElement('canvas');
+  tatamiCanvas.width = ROOM_TILES * BASE_TILE;
+  tatamiCanvas.height = ROOM_TILES * BASE_TILE;
+  const tc = tatamiCanvas.getContext('2d');
+  tc.fillStyle = C.tatami;
+  tc.fillRect(0, 0, ROOM_TILES * BASE_TILE, ROOM_TILES * BASE_TILE);
+  // Tatami grid lines
+  tc.strokeStyle = C.tatamiLine;
+  tc.lineWidth = 0.5;
+  // Horizontal lines every 7px, vertical every 14px (alternating pattern)
+  for (let y = 0; y <= ROOM_TILES; y++) {
+    tc.beginPath();
+    tc.moveTo(0, y * BASE_TILE);
+    tc.lineTo(ROOM_TILES * BASE_TILE, y * BASE_TILE);
+    tc.stroke();
+  }
+  for (let x = 0; x <= ROOM_TILES; x++) {
+    tc.beginPath();
+    tc.moveTo(x * BASE_TILE, 0);
+    tc.lineTo(x * BASE_TILE, ROOM_TILES * BASE_TILE);
+    tc.stroke();
+  }
+  return tatamiCanvas;
+}
+
+function drawTile(tx, ty) {
+  const t = tileAt(tx, ty);
+  const { sx, sy } = worldToScreen(tx * BASE_TILE, ty * BASE_TILE);
+  const sz = BASE_TILE * SCALE;
+
+  switch (t) {
+    case T.WALL:
+      ctx.fillStyle = C.wallDark;
+      ctx.fillRect(sx, sy, sz, sz);
+      // subtle wood grain
+      ctx.fillStyle = C.wall;
+      ctx.fillRect(sx + SCALE, sy + SCALE, sz - SCALE * 2, SCALE);
+      break;
+    case T.FLOOR:
+      ctx.fillStyle = C.tatami;
+      ctx.fillRect(sx, sy, sz, sz);
+      // tatami lines
+      ctx.strokeStyle = C.tatamiLine;
+      ctx.lineWidth = Math.max(0.5, SCALE * 0.3);
+      ctx.strokeRect(sx + 0.5, sy + 0.5, sz - 1, sz - 1);
+      break;
+    case T.ENGAWA:
+      ctx.fillStyle = C.engawa;
+      ctx.fillRect(sx, sy, sz, sz);
+      // wood plank lines
+      ctx.fillStyle = '#1a1208';
+      if ((tx + ty) % 3 === 0) ctx.fillRect(sx, sy + sz - SCALE, sz, SCALE);
+      break;
+    case T.FUSUMA_H:
+    case T.FUSUMA_V:
+      ctx.fillStyle = C.fusOpen;
+      ctx.fillRect(sx, sy, sz, sz);
+      // subtle opening indication
+      ctx.fillStyle = '#0d0906';
+      ctx.fillRect(sx + SCALE, sy + SCALE, sz - SCALE * 2, sz - SCALE * 2);
+      break;
+  }
+}
+
+function drawFusumaBorders() {
+  // Draw fusuma frames on wall tiles adjacent to fusuma passages
+  for (let ty = 0; ty < MAP_H; ty++) {
+    for (let tx = 0; tx < MAP_W; tx++) {
+      const t = tileAt(tx, ty);
+      if (t !== T.WALL) continue;
+      // Check if adjacent to fusuma
+      const adjH = tileAt(tx, ty - 1) === T.FUSUMA_V || tileAt(tx, ty + 1) === T.FUSUMA_V;
+      const adjV = tileAt(tx - 1, ty) === T.FUSUMA_H || tileAt(tx + 1, ty) === T.FUSUMA_H;
+      if (!adjH && !adjV) continue;
+
+      const { sx, sy } = worldToScreen(tx * BASE_TILE, ty * BASE_TILE);
+      const sz = BASE_TILE * SCALE;
+      ctx.fillStyle = C.fusuma;
+      ctx.fillRect(sx, sy, sz, sz);
+      ctx.strokeStyle = C.fusumaLine;
+      ctx.lineWidth = Math.max(1, SCALE * 0.5);
+      ctx.strokeRect(sx + SCALE * 0.5, sy + SCALE * 0.5, sz - SCALE, sz - SCALE);
+    }
+  }
+}
+
+function drawRoomMemoIndicators() {
+  for (const key in roomMemos) {
+    if (key === 'engawa') continue;
+    const [rx, ry] = key.split(',').map(Number);
+    const { x: ox, y: oy } = roomOrigin(rx, ry);
+    const { sx, sy } = worldToScreen((ox + 3) * BASE_TILE, (oy + 3) * BASE_TILE);
+    const sz = BASE_TILE * SCALE;
+    // Small memo indicator
+    ctx.fillStyle = 'rgba(200,169,110,0.4)';
+    ctx.fillRect(sx + sz * 0.2, sy + sz * 0.2, sz * 0.6, sz * 0.6);
+    ctx.strokeStyle = C.memo;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sx + sz * 0.2, sy + sz * 0.2, sz * 0.6, sz * 0.6);
+  }
+}
+
+// Draw pixel character
+function drawEntity(entity, color, isPlayer) {
+  const { sx, sy } = worldToScreen(entity.px, entity.py);
+  const sz = BASE_TILE * SCALE;
+  const s = SCALE;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(sx + sz/2, sy + sz - s/2, sz * 0.4, s * 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (isPlayer) {
+    // Player: simple humanoid sprite
+    // Body
+    ctx.fillStyle = '#3a2e1a';
+    ctx.fillRect(sx + s*2, sy + s*3, s*4, s*4);
+    // Head
+    ctx.fillStyle = '#c8a060';
+    ctx.fillRect(sx + s*2.5, sy + s, s*3, s*3);
+    // Hair
+    ctx.fillStyle = '#1a1208';
+    ctx.fillRect(sx + s*2, sy + s, s*4, s);
+    // Eyes (blink on frame 3)
+    if (entity.animFrame !== 3) {
+      ctx.fillStyle = '#1a1208';
+      ctx.fillRect(sx + s*3, sy + s*2, s, s);
+      ctx.fillRect(sx + s*4.5, sy + s*2, s, s);
+    }
+    // Kimono detail
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(sx + s*2.5, sy + s*3, s, s*4);
+    // Feet
+    ctx.fillStyle = '#2a2010';
+    ctx.fillRect(sx + s*2.5, sy + s*6, s*1.5, s);
+    ctx.fillRect(sx + s*4, sy + s*6, s*1.5, s);
+  } else {
+    // Doll: karakuri puppet style
+    const c = color;
+    const dark = darken(c, 0.5);
+    const light = lighten(c, 0.5);
+
+    // Kimono body
+    ctx.fillStyle = dark;
+    ctx.fillRect(sx + s*2, sy + s*3, s*4, s*4);
+    ctx.fillStyle = c;
+    ctx.fillRect(sx + s*2.5, sy + s*3, s*3, s*4);
+
+    // Head (puppet-like, round)
+    ctx.fillStyle = '#e8e0cc';
+    ctx.fillRect(sx + s*2, sy + s, s*4, s*3);
+    // Face features
+    ctx.fillStyle = '#1a1208';
+    const blink = entity.animFrame === 2;
+    if (!blink) {
+      ctx.fillRect(sx + s*2.5, sy + s*2, s, s);
+      ctx.fillRect(sx + s*4, sy + s*2, s, s);
+    } else {
+      ctx.fillRect(sx + s*2.5, sy + s*2.5, s, s * 0.5);
+      ctx.fillRect(sx + s*4, sy + s*2.5, s, s * 0.5);
+    }
+    // Mouth
+    ctx.fillStyle = '#c85870';
+    ctx.fillRect(sx + s*3, sy + s*3.2, s*2, s * 0.5);
+
+    // Hair ornament
+    ctx.fillStyle = light;
+    ctx.fillRect(sx + s*1.5, sy, s, s*1.5);
+    ctx.fillRect(sx + s*5.5, sy, s, s*1.5);
+
+    // Feet
+    ctx.fillStyle = '#2a2010';
+    ctx.fillRect(sx + s*2.5, sy + s*6, s, s);
+    ctx.fillRect(sx + s*4.5, sy + s*6, s, s);
+  }
+}
+
+function darken(hex, f) {
+  let r = parseInt(hex.slice(1,3),16);
+  let g = parseInt(hex.slice(3,5),16);
+  let b = parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.floor(r*f)},${Math.floor(g*f)},${Math.floor(b*f)})`;
+}
+function lighten(hex, f) {
+  let r = parseInt(hex.slice(1,3),16);
+  let g = parseInt(hex.slice(3,5),16);
+  let b = parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.min(255,Math.floor(r+(255-r)*f))},${Math.min(255,Math.floor(g+(255-g)*f))},${Math.min(255,Math.floor(b+(255-b)*f))})`;
+}
+
+function drawNameTag(entity, name, color) {
+  const { sx, sy } = worldToScreen(entity.px, entity.py);
+  const sz = BASE_TILE * SCALE;
+  ctx.font = `${Math.max(8, SCALE * 3)}px serif`;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillText(name, sx + sz/2 + 1, sy - SCALE + 1);
+  ctx.fillStyle = color;
+  ctx.fillText(name, sx + sz/2, sy - SCALE);
+}
+
+function drawScreen() {
+  ctx.save();
+  ctx.scale(1, 1); // already applying SCALE in worldToScreen
+
+  // Background
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Determine visible tile range
+  const startTX = Math.floor(camX / BASE_TILE) - 1;
+  const startTY = Math.floor(camY / BASE_TILE) - 1;
+  const endTX = startTX + VIEW_TILES_W + 3;
+  const endTY = startTY + VIEW_TILES_H + 3;
+
+  // Draw tiles
+  for (let ty = startTY; ty <= endTY; ty++) {
+    for (let tx = startTX; tx <= endTX; tx++) {
+      drawTile(tx, ty);
+    }
+  }
+
+  // Draw fusuma frames
+  drawFusumaBorders();
+
+  // Room memo indicators
+  drawRoomMemoIndicators();
+
+  // Vignette overlay
+  const vg = ctx.createRadialGradient(
+    canvas.width/2, canvas.height/2, canvas.width * 0.2,
+    canvas.width/2, canvas.height/2, canvas.width * 0.8
+  );
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw entities sorted by Y
+  const entities = [
+    { e: player, isPlayer: true, color: C.player },
+    ...dolls.map((d, i) => ({ e: d, isPlayer: false, color: d.def.color, name: d.def.name }))
+  ].sort((a, b) => a.e.py - b.e.py);
+
+  for (const { e, isPlayer, color, name } of entities) {
+    drawEntity(e, color, isPlayer);
+    if (!isPlayer && name) drawNameTag(e, name, color);
+  }
+
+  // Atmospheric lantern glow
+  const lx = canvas.width / 2;
+  const ly = canvas.height / 3;
+  const glow = ctx.createRadialGradient(lx, ly, 0, lx, ly, 80 * SCALE);
+  glow.addColorStop(0, 'rgba(200,120,20,0.08)');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.restore();
+}
+
+// ===== UPDATE CAMERA =====
+function updateCamera() {
+  const targetCamX = player.px - VIEW_TILES_W * BASE_TILE / 2 + BASE_TILE / 2;
+  const targetCamY = player.py - VIEW_TILES_H * BASE_TILE / 2 + BASE_TILE / 2;
+  camX += (targetCamX - camX) * 0.15;
+  camY += (targetCamY - camY) * 0.15;
+  // Clamp
+  camX = Math.max(0, Math.min(camX, (MAP_W - VIEW_TILES_W) * BASE_TILE));
+  camY = Math.max(0, Math.min(camY, (MAP_H - VIEW_TILES_H) * BASE_TILE));
+}
+
+// ===== GAME LOOP =====
+let lastTime = 0;
+function gameLoop(ts) {
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+
+  player.update(dt);
+  dolls.forEach(d => d.update(dt));
+  updateCamera();
+  drawScreen();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ===== INIT =====
+window.addEventListener('resize', () => { resize(); });
+resize();
+requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
+
+// Title message
+setTimeout(() => {
+  showDialog('廻廊屋敷', '暗い屋敷の廻廊を自由に歩き回ってください。\n五体のカラクリ人形が徘徊しています。', 5000);
+}, 500);
+</script>
+</body>
+</html>
